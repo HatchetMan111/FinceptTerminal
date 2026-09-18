@@ -203,6 +203,7 @@ rm -f /tmp/fincept.deb
 set +x
 fi
 echo '[2b/6] Qt 6.8.3 Laufzeit via aqtinstall (Upstream-Pin, wie Dockerfile) ...'
+mkdir -p /etc/fincept /opt/fincept-portal /usr/local/bin
 QT_ROOT=/opt/Qt/6.8.3/gcc_64
 if [ -f \"\$QT_ROOT/lib/libQt6Core.so.6\" ]; then
   echo '  Qt 6.8.3 bereits vorhanden – überspringe Download.'
