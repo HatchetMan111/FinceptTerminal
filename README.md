@@ -91,6 +91,18 @@ README.md
 Reboot-Test: `pct reboot <CTID>` → nach ~30 s beide URLs wieder erreichbar
 (`curl http://<IP>:8080/healthz`).
 
+## Fehlerbehebung (kurz)
+
+- **VNC verbindet, aber schwarz:** Fast immer fehlt der App eine Lib.
+  Im Container prüfen: `ldd /usr/bin/FinceptTerminal | grep "not found"`,
+  Prozess prüfen: `pgrep -af FinceptTerminal`, Logs:
+  `journalctl -u fincept-vnc.service -n 50 --no-pager`.
+  Der Installer installiert Qt 6.8.3 (inkl. WebEngine) automatisch nach
+  `/opt/Qt` und setzt die Flags für unprivilegierte LXC
+  (`--no-sandbox --disable-gpu --disable-dev-shm-usage`).
+- **HTTP 500 bei anderen Apps** (z. B. Cloudflare-Worker-Emulation):
+  gehört nicht zu diesem Installer – ggf. separates Setup prüfen.
+
 ## Lizenz-Hinweis
 
 FinceptTerminal steht unter **AGPL-3.0** (strong copyleft). Wer den Container
