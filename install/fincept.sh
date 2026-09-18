@@ -243,8 +243,8 @@ mkdir -p /opt/fincept-portal /etc/fincept /usr/local/bin
 for f in portal/app.py portal/fincept-vnc-start.sh systemd/fincept-portal.service systemd/fincept-vnc.service; do
   wget -qO \"/tmp/\$(basename \$f)\" \"$REPO_RAW/\$f\" || echo \"WARN: \$f nicht ladbar (Repo noch nicht gepusht?) – nutze eingebetteten Fallback falls vorhanden\"
 done
-copy_or_fail() { # $1=Quelle /tmp/x  $2=Ziel  (set -e-sicher, mit Klartext-Fehler)
-  if [ -s \"$1\" ]; then cp \"$1\" \"$2\"; else echo \"FEHLER: \$1 fehlt/leer – Download von \$REPO_RAW pruefen\" >&2; exit 1; fi
+copy_or_fail() { # args: Quelle Ziel (set -e-sicher, mit Klartext-Fehler)
+  if [ -s \"\$1\" ]; then cp \"\$1\" \"\$2\"; else echo \"FEHLER: \$1 fehlt/leer – Download von $REPO_RAW pruefen\" >&2; exit 1; fi
 }
 copy_or_fail /tmp/app.py /opt/fincept-portal/app.py
 copy_or_fail /tmp/fincept-vnc-start.sh /usr/local/bin/fincept-vnc-start.sh
@@ -292,7 +292,7 @@ else
   pct exec "$CTID" -- bash -c "ldd /usr/bin/FinceptTerminal 2>/dev/null | grep 'not found'" >&2 || true
 fi
 
-CTIP=$(pct exec "$CTID" -- hostname -I | awk '{print $1}')
+CTIP=$(pct exec "$CTID" -- hostname -I | awk '{print \$1}')
 echo ""
 echo "━━━━━━━━━━━━━━━━ FERTIG ━━━━━━━━━━━━━━━━"
 echo "  $APP_NAME läuft in LXC $CTID ($HOSTNAME)"
