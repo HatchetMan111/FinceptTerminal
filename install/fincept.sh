@@ -183,8 +183,9 @@ getent hosts github.com >/dev/null || { echo 'FEHLER: DNS fuer github.com schlae
 timeout 15 bash -c 'cat < /dev/null > /dev/tcp/github.com/443' 2>/dev/null || { echo 'FEHLER: TCP/443 zu github.com schlaegt fehl (Firewall/Proxy/DHCP?)' >&2; exit 1; }
 echo '[1/6] apt + Abhängigkeiten ...'
 apt-get update
-apt-get install -y --no-install-recommends ca-certificates curl wget gnupg \
-  python3 libglib2.0-0 libdbus-1-3 libfontconfig1 libfreetype6 libx11-6 \
+  apt-get install -y --no-install-recommends ca-certificates curl wget gnupg \
+  python3 python3-venv python3-pip python3-dev build-essential libssl-dev libffi-dev \
+  libglib2.0-0 libdbus-1-3 libfontconfig1 libfreetype6 libx11-6 \
   libxcb1 libxkbcommon0 libegl1 libgl1 \
   xvfb openbox x11vnc websockify novnc net-tools iproute2 \
   dbus-x11 xterm x11-xserver-utils procps libatomic1 \
