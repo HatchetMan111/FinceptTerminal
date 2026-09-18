@@ -187,7 +187,7 @@ apt-get install -y --no-install-recommends ca-certificates curl wget gnupg \
   python3 libglib2.0-0 libdbus-1-3 libfontconfig1 libfreetype6 libx11-6 \
   libxcb1 libxkbcommon0 libegl1 libgl1 \
   xvfb openbox x11vnc websockify novnc net-tools iproute2 \
-  dbus-x11 xterm x11-xserver-utils procps \
+  dbus-x11 xterm x11-xserver-utils procps libatomic1 \
   libxkbcommon-x11-0 libxcb-cursor0 python3-pyxdg menu
 echo "[2/6] FinceptTerminal .deb ($VERSION) ..."
 if dpkg -s finceptterminal 2>/dev/null | grep -q "Version: $VERSION"; then
@@ -216,7 +216,7 @@ else
   pip3 install --break-system-packages --no-cache-dir aqtinstall
   for attempt in 1 2 3 4 5; do
     python3 -m aqt install-qt linux desktop 6.8.3 linux_gcc_64 \
-      --outputdir /opt/Qt --modules qtcharts qtwebsockets qtmultimedia qtwebengine qtwebchannel 2>&1 | tail -5 && break \
+      --outputdir /opt/Qt --modules qtcharts qtwebsockets qtmultimedia qtwebengine qtwebchannel qtpositioning 2>&1 | tail -5 && break \
     || { echo "  aqtinstall Versuch $attempt fehlgeschlagen, retry in 10s ..."; sleep 10; }
   done
   [ -f "$QT_ROOT/lib/libQt6Core.so.6" ] || { echo 'FEHLER: Qt-Installation unvollstaendig' >&2; ls -R /opt/Qt 2>/dev/null | head -20 >&2 || true; exit 1; }
