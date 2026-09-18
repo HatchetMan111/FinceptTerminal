@@ -1,0 +1,16 @@
+[Unit]
+Description=FinceptTerminal LXC Web-Portal (0.0.0.0:8080)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/fincept/portal.conf
+ExecStart=/usr/bin/python3 /opt/fincept-portal/app.py
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
