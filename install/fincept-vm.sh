@@ -36,8 +36,18 @@ ask() { if [ "$UNATTENDED" -eq 1 ]; then echo "$3"; return; fi
 command -v qm >/dev/null || { echo "qm nicht gefunden – kein Proxmox-Host?" >&2; exit 1; }
 
 STEP="Konfig"
-next_vmid() { local id=200; while qm status "$id" >/dev/null 2>&1; do id=$((id+1)); done; echo "$id"; }
+# VMs und Container teilen sich den ID-Raum -> beides pruefen
+id_taken() { local id="$1";
+  if command -v qm >/dev/null && qm status "$id" >/dev/null 2>&1; then return 0; fi
+  if command -v pct >/dev/null && pct status "$id" >/dev/null 2>&1; then return 0; fi
+  return 1; }
+next_vmid() { local id=200; while id_taken "$id"; do id=$((id+1)); done; echo "$id"; }
 VMID="${VMID_ARG:-$(ask VMID 'VM-ID' "$(next_vmid)")}"
+if id_taken "$VMID"; then
+  echo "[fincept-vm] ID $VMID belegt (VM oder Container) – nehme naechste freie." >&2
+  while id_taken "$VMID"; do VMID=$((VMID+1)); done
+  echo "[fincept-vm] Neue VMID: $VMID" >&2
+fi
 STORAGE="${STORAGE_ARG:-$(ask STORAGE 'Storage' "local-lvm")}"
 BRIDGE="${BRIDGE_ARG:-$(ask BRIDGE 'Bridge' "vmbr0")}"
 VERSION="$(ask VERSION 'Fincept Version' "$DEFAULT_VERSION")"
@@ -49,12 +59,12 @@ mkdir -p /var/lib/vz/template/iso
 
 STEP="VM erstellen"
 msg "Erstelle VM $VMID (${DEFAULT_CPU}c/${DEFAULT_RAM}MB/${DEFAULT_DISK}G, onboot=1) ..."
-qm create "$VMID" --name fincept --memory "$DEFAULT_RAM" --cores "$DEFAULT_CPU" \
+qm create "$VMID" --name finceptterminal --memory "$DEFAULT_RAM" --cores "$DEFAULT_CPU" \
   --net0 "virtio,bridge=${BRIDGE}" --onboot 1 --agent enabled=1 \
   --scsihw virtio-scsi-pci --scsi0 "${STORAGE}:${DEFAULT_DISK},import-from=/var/lib/vz/template/iso/${CLOUD_IMG}" \
   --ide2 "${STORAGE}:cloudinit" --boot c --bootdisk scsi0 --serial0 socket --vga serial0 \
   --ipconfig0 ip=dhcp --ciuser fincept --cipassword fincept --sshkeys /root/.ssh/authorized_keys 2>/dev/null || \
-qm create "$VMID" --name fincept --memory "$DEFAULT_RAM" --cores "$DEFAULT_CPU" \
+qm create "$VMID" --name finceptterminal --memory "$DEFAULT_RAM" --cores "$DEFAULT_CPU" \
   --net0 "virtio,bridge=${BRIDGE}" --onboot 1 --agent enabled=1 \
   --scsihw virtio-scsi-pci --scsi0 "${STORAGE}:${DEFAULT_DISK},import-from=/var/lib/vz/template/iso/${CLOUD_IMG}" \
   --ide2 "${STORAGE}:cloudinit" --boot c --bootdisk scsi0 --serial0 socket --vga serial0 \
