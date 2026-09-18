@@ -4,6 +4,8 @@
 # (journalctl -u fincept-vnc.service) – volle Fehlerkette statt Blackbox.
 set -euo pipefail
 [ -f /etc/fincept/portal.conf ] && . /etc/fincept/portal.conf
+[ -f /etc/fincept/qt.env ] && . /etc/fincept/qt.env || true
+export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}" QT_PLUGIN_PATH="${QT_PLUGIN_PATH:-}" QT_QPA_PLATFORM_PLUGIN_PATH="${QT_QPA_PLATFORM_PLUGIN_PATH:-}"
 NOVNC_PORT="${NOVNC_PORT:-6080}"
 FINCEPT_BIN="${FINCEPT_BIN:-/usr/bin/FinceptTerminal}"
 export DISPLAY=:99
