@@ -174,9 +174,9 @@ msg "Installiere FinceptTerminal $VERSION + Portal (Port $PORT) in CT $CTID ..."
 pct exec "$CTID" -- bash -c "
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
-echo '[0/6] Netzwerk Pre-Flight (DNS + HTTPS) ...'
+echo '[0/6] Netzwerk Pre-Flight (DNS + TCP/443, nur Bash-Builtins, curl/wget kommen erst in [1/6]) ...'
 getent hosts github.com >/dev/null || { echo 'FEHLER: DNS fuer github.com schlaegt fehl' >&2; cat /etc/resolv.conf >&2 || true; exit 1; }
-curl -fsSI --max-time 20 https://github.com >/dev/null || { echo 'FEHLER: HTTPS zu github.com schlaegt fehl (Proxy/Firewall?)' >&2; exit 1; }
+timeout 15 bash -c 'cat < /dev/null > /dev/tcp/github.com/443' 2>/dev/null || { echo 'FEHLER: TCP/443 zu github.com schlaegt fehl (Firewall/Proxy/DHCP?)' >&2; exit 1; }
 echo '[1/6] apt + Abhängigkeiten ...'
 apt-get update
 apt-get install -y --no-install-recommends ca-certificates curl wget gnupg \
