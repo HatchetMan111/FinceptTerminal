@@ -83,6 +83,15 @@ def fincept_version() -> str:
     return out.splitlines()[0][:120] if out else "nicht installiert"
 
 
+def fincept_process() -> str:
+    """Läuft die Fincept-GUI? Entscheidend bei schwarzem VNC-Bildschirm."""
+    r = run(["pgrep", "-af", "FinceptTerminal"])
+    lines = [l for l in (r["stdout"] or "").splitlines() if "pgrep" not in l]
+    if lines:
+        return "läuft: " + lines[0][:150]
+    return "läuft NICHT (Ursache für schwarzen Bildschirm? Logs prüfen!)"
+
+
 def local_ips() -> list:
     ips = []
     try:
@@ -146,6 +155,7 @@ async function j(u,o){const r=await fetch(u,o);const t=await r.text();try{return
 async function refresh(){const s=await j('/api/status');const ok=c=>c==='active'?'<b class=ok>active</b>':'<b class=err>'+c+'</b>';
 document.getElementById('status').innerHTML='<table>'
 +'<tr><td>FinceptTerminal</td><td>'+s.fincept_version+'</td></tr>'
++'<tr><td>Fincept-Prozess</td><td>'+s.fincept_process+'</td></tr>'
 +'<tr><td>fincept-portal.service</td><td>'+ok(s.services['fincept-portal'])+'</td></tr>'
 +'<tr><td>fincept-vnc.service</td><td>'+ok(s.services['fincept-vnc'])+'</td></tr>'
 +'<tr><td>Container-IPs</td><td>'+s.ips.join(', ')+'</td></tr>'
@@ -189,6 +199,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(200, {
                     "app": APP_NAME,
                     "fincept_version": fincept_version(),
+                    "fincept_process": fincept_process(),
                     "services": {
                         "fincept-portal": svc_active("fincept-portal.service"),
                         "fincept-vnc": svc_active("fincept-vnc.service"),
