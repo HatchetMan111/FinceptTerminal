@@ -212,7 +212,7 @@ else
   pip3 install --break-system-packages --no-cache-dir aqtinstall
   for attempt in 1 2 3 4 5; do
     python3 -m aqt install-qt linux desktop 6.8.3 linux_gcc_64 \
-      --outputdir /opt/Qt --modules qtcharts qtwebsockets qtmultimedia qtwebengine 2>&1 | tail -5 && break \
+      --outputdir /opt/Qt --modules qtcharts qtwebsockets qtmultimedia qtwebengine qtwebchannel 2>&1 | tail -5 && break \
     || { echo \"  aqtinstall Versuch \$attempt fehlgeschlagen, retry in 10s ...\"; sleep 10; }
   done
   [ -f \"\$QT_ROOT/lib/libQt6Core.so.6\" ] || { echo 'FEHLER: Qt-Installation unvollstaendig' >&2; ls -R /opt/Qt 2>/dev/null | head -20 >&2 || true; exit 1; }
@@ -222,9 +222,10 @@ QT_ROOT=\$QT_ROOT
 LD_LIBRARY_PATH=\$QT_ROOT/lib:/usr/local/lib
 QT_PLUGIN_PATH=\$QT_ROOT/plugins
 QT_QPA_PLATFORM_PLUGIN_PATH=\$QT_ROOT/plugins/platforms
-QTWEBENGINE_CHROMIUM_FLAGS=--no-sandbox --disable-gpu --disable-dev-shm-usage
+QTWEBENGINE_CHROMIUM_FLAGS="--no-sandbox --disable-gpu --disable-dev-shm-usage"
 EOF2
-echo '[2c/6] ldd-Check auf fehlende Libs ...'
+echo '[2c/6] ldd-Check auf fehlende Libs (mit Qt-Umgebung aus qt.env) ...'
+set -a; . /etc/fincept/qt.env; set +a
 ldd /usr/bin/FinceptTerminal > /tmp/fincept-ldd.txt 2>&1 || true
 if grep -q 'not found' /tmp/fincept-ldd.txt; then
   echo '  WARN: fehlende Libs, versuche Debian-Pakete:'
@@ -290,10 +291,10 @@ if pct exec "$CTID" -- pgrep -af FinceptTerminal | grep -v pgrep; then
 else
   warn "Fincept-Prozess läuft NICHT – Diagnose:"
   pct exec "$CTID" -- journalctl -u fincept-vnc.service -n 30 --no-pager >&2 || true
-  pct exec "$CTID" -- bash -c "ldd /usr/bin/FinceptTerminal 2>/dev/null | grep 'not found'" >&2 || true
+  pct exec "$CTID" -- bash -c "set -a; . /etc/fincept/qt.env; set +a; ldd /usr/bin/FinceptTerminal 2>/dev/null | grep 'not found'" >&2 || true
 fi
 
-CTIP=$(pct exec "$CTID" -- hostname -I | awk '{print \$1}')
+CTIP=$(pct exec "$CTID" -- hostname -I | awk '{print $1}')
 echo ""
 echo "━━━━━━━━━━━━━━━━ FERTIG ━━━━━━━━━━━━━━━━"
 echo "  $APP_NAME läuft in LXC $CTID ($HOSTNAME)"
