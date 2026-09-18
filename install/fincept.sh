@@ -180,7 +180,8 @@ apt-get install -y --no-install-recommends ca-certificates curl wget gnupg \
   python3 libglib2.0-0 libdbus-1-3 libfontconfig1 libfreetype6 libx11-6 \
   libxcb1 libxkbcommon0 libegl1 libgl1 \
   xvfb openbox x11vnc websockify novnc net-tools iproute2 \
-  dbus-x11 xterm x11-xserver-utils procps
+  dbus-x11 xterm x11-xserver-utils procps \
+  libxkbcommon-x11-0 libxcb-cursor0 python3-pyxdg menu
 echo '[2/6] FinceptTerminal .deb ($VERSION) ...'
 if dpkg -s finceptterminal 2>/dev/null | grep -q 'Version: $VERSION'; then
   echo '  bereits installiert: $VERSION – überspringe Download.'
@@ -190,6 +191,41 @@ else
   apt-get install -y /tmp/fincept.deb
   rm -f /tmp/fincept.deb
   set +x
+fi
+echo '[2b/6] Qt 6.8.3 Laufzeit via aqtinstall (Upstream-Pin, wie Dockerfile) ...'
+QT_ROOT=/opt/Qt/6.8.3/gcc_64
+if [ -f \"\$QT_ROOT/lib/libQt6Core.so.6\" ]; then
+  echo '  Qt 6.8.3 bereits vorhanden – überspringe Download.'
+else
+  apt-get install -y --no-install-recommends python3-pip
+  pip3 install --break-system-packages --no-cache-dir aqtinstall
+  for attempt in 1 2 3 4 5; do
+    python3 -m aqt install-qt linux desktop 6.8.3 linux_gcc_64 \
+      --outputdir /opt/Qt --modules qtcharts qtwebsockets qtmultimedia 2>&1 | tail -2 && break \
+    || { echo \"  aqtinstall Versuch \$attempt fehlgeschlagen, retry in 10s ...\"; sleep 10; }
+  done
+  [ -f \"\$QT_ROOT/lib/libQt6Core.so.6\" ] || { echo 'FEHLER: Qt-Installation unvollstaendig' >&2; ls -R /opt/Qt 2>/dev/null | head -20 >&2 || true; exit 1; }
+fi
+cat > /etc/fincept/qt.env <<EOF2
+QT_ROOT=\$QT_ROOT
+LD_LIBRARY_PATH=\$QT_ROOT/lib:/usr/local/lib
+QT_PLUGIN_PATH=\$QT_ROOT/plugins
+QT_QPA_PLATFORM_PLUGIN_PATH=\$QT_ROOT/plugins/platforms
+EOF2
+echo '[2c/6] ldd-Check auf fehlende Libs ...'
+ldd /usr/bin/FinceptTerminal > /tmp/fincept-ldd.txt 2>&1 || true
+if grep -q 'not found' /tmp/fincept-ldd.txt; then
+  echo '  WARN: fehlende Libs, versuche Debian-Pakete:'
+  grep 'not found' /tmp/fincept-ldd.txt || true
+  apt-get install -y --no-install-recommends libgl1 libegl1 libopengl0 libdbus-1-3 libfontconfig1 libfreetype6 libglib2.0-0 libx11-6 libxkbcommon0 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-sync1 libxcb-xfixes0 libxcb-xinerama0 libxcb-xkb1 libxcb-util1 libpulse0 libasound2 || true
+  ldd /usr/bin/FinceptTerminal > /tmp/fincept-ldd.txt 2>&1 || true
+  if grep -q 'not found' /tmp/fincept-ldd.txt; then
+    echo 'FEHLER: Libs fehlen weiterhin:' >&2; grep 'not found' /tmp/fincept-ldd.txt >&2 || true
+  else
+    echo '  alle Libs aufgeloest.'
+  fi
+else
+  echo '  alle Libs aufgeloest.'
 fi
 echo '[3/6] Portal + Units von $REPO_RAW ...'
 mkdir -p /opt/fincept-portal /etc/fincept /usr/local/bin
@@ -230,6 +266,16 @@ else
   echo "WARN: Portal antwortet (noch) nicht – Logs:" >&2
   pct exec "$CTID" -- journalctl -u fincept-portal.service -n 50 --no-pager >&2 || true
   exit 1
+fi
+
+msg "Warte auf Fincept-Prozess (Qt-Start braucht Sekunden) ..."
+sleep 10
+if pct exec "$CTID" -- pgrep -af FinceptTerminal | grep -v pgrep; then
+  msg "Fincept-Prozess läuft – VNC sollte Bild zeigen."
+else
+  warn "Fincept-Prozess läuft NICHT – Diagnose:"
+  pct exec "$CTID" -- journalctl -u fincept-vnc.service -n 30 --no-pager >&2 || true
+  pct exec "$CTID" -- bash -c "ldd /usr/bin/FinceptTerminal 2>/dev/null | grep 'not found'" >&2 || true
 fi
 
 CTIP=$(pct exec "$CTID" -- hostname -I | awk '{print $1}')
