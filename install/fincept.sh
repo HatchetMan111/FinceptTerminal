@@ -171,7 +171,11 @@ fi
 # ---------------- Payload im Container installieren ------------------
 STEP="Installation im Container"
 msg "Installiere FinceptTerminal $VERSION + Portal (Port $PORT) in CT $CTID ..."
-pct exec "$CTID" -- bash -c "
+# Payload als DATEI in den Container (pct push) statt Inline-bash-c:
+# Der Heredoc ist quotiert (keinerlei Host-Expansion), Variablen kommen
+# per env ins Container-Skript. Keine $ "-Fallen mehr moeglich.
+PAYLOAD_FILE="$(mktemp /tmp/fincept-payload.XXXXXX.sh)"
+cat > "$PAYLOAD_FILE" <<'PAYLOAD_EOF'
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 echo '[0/6] Netzwerk Pre-Flight (DNS + TCP/443, nur Bash-Builtins, curl/wget kommen erst in [1/6]) ...'
@@ -185,19 +189,19 @@ apt-get install -y --no-install-recommends ca-certificates curl wget gnupg \
   xvfb openbox x11vnc websockify novnc net-tools iproute2 \
   dbus-x11 xterm x11-xserver-utils procps \
   libxkbcommon-x11-0 libxcb-cursor0 python3-pyxdg menu
-echo '[2/6] FinceptTerminal .deb ($VERSION) ...'
-if dpkg -s finceptterminal 2>/dev/null | grep -q 'Version: $VERSION'; then
-  echo '  bereits installiert: $VERSION – überspringe Download.'
+echo "[2/6] FinceptTerminal .deb ($VERSION) ..."
+if dpkg -s finceptterminal 2>/dev/null | grep -q "Version: $VERSION"; then
+  echo "  bereits installiert: $VERSION – überspringe Download."
 else
-DEB_URL='$UPSTREAM_REPO/releases/download/v$VERSION/FinceptTerminal-$VERSION-linux-x64.deb'
+DEB_URL="$UPSTREAM_REPO/releases/download/v$VERSION/FinceptTerminal-$VERSION-linux-x64.deb"
 DEB_OK=0
 for attempt in 1 2 3; do
-  echo \"  Download-Versuch \$attempt: \$DEB_URL\"
-  if wget -qO /tmp/fincept.deb \"\$DEB_URL\"; then DEB_OK=1; break; fi
-  echo \"  WARN: wget Exit-Code \$? – retry in 10s ...\"
+  echo "  Download-Versuch $attempt: $DEB_URL"
+  if wget -qO /tmp/fincept.deb "$DEB_URL"; then DEB_OK=1; break; fi
+  echo "  WARN: wget Exit-Code $? – retry in 10s ..."
   sleep 10
 done
-[ \"\$DEB_OK\" = \"1\" ] || { echo \"FEHLER: .deb-Download nach 3 Versuchen fehlgeschlagen: \$DEB_URL\" >&2; echo 'Pruefung: URL im Browser oeffnen, Version mit --version ueberschreiben.' >&2; exit 1; }
+[ "$DEB_OK" = "1" ] || { echo "FEHLER: .deb-Download nach 3 Versuchen fehlgeschlagen: $DEB_URL" >&2; echo 'Pruefung: URL im Browser oeffnen, Version mit --version ueberschreiben.' >&2; exit 1; }
 apt-get install -y /tmp/fincept.deb
 rm -f /tmp/fincept.deb
 set +x
@@ -205,7 +209,7 @@ fi
 echo '[2b/6] Qt 6.8.3 Laufzeit via aqtinstall (Upstream-Pin, wie Dockerfile) ...'
 mkdir -p /etc/fincept /opt/fincept-portal /usr/local/bin
 QT_ROOT=/opt/Qt/6.8.3/gcc_64
-if [ -f \"\$QT_ROOT/lib/libQt6Core.so.6\" ]; then
+if [ -f "$QT_ROOT/lib/libQt6Core.so.6" ]; then
   echo '  Qt 6.8.3 bereits vorhanden – überspringe Download.'
 else
   apt-get install -y --no-install-recommends python3-pip
@@ -213,15 +217,15 @@ else
   for attempt in 1 2 3 4 5; do
     python3 -m aqt install-qt linux desktop 6.8.3 linux_gcc_64 \
       --outputdir /opt/Qt --modules qtcharts qtwebsockets qtmultimedia qtwebengine qtwebchannel 2>&1 | tail -5 && break \
-    || { echo \"  aqtinstall Versuch \$attempt fehlgeschlagen, retry in 10s ...\"; sleep 10; }
+    || { echo "  aqtinstall Versuch $attempt fehlgeschlagen, retry in 10s ..."; sleep 10; }
   done
-  [ -f \"\$QT_ROOT/lib/libQt6Core.so.6\" ] || { echo 'FEHLER: Qt-Installation unvollstaendig' >&2; ls -R /opt/Qt 2>/dev/null | head -20 >&2 || true; exit 1; }
+  [ -f "$QT_ROOT/lib/libQt6Core.so.6" ] || { echo 'FEHLER: Qt-Installation unvollstaendig' >&2; ls -R /opt/Qt 2>/dev/null | head -20 >&2 || true; exit 1; }
 fi
 cat > /etc/fincept/qt.env <<EOF2
-QT_ROOT=\$QT_ROOT
-LD_LIBRARY_PATH=\$QT_ROOT/lib:/usr/local/lib
-QT_PLUGIN_PATH=\$QT_ROOT/plugins
-QT_QPA_PLATFORM_PLUGIN_PATH=\$QT_ROOT/plugins/platforms
+QT_ROOT=$QT_ROOT
+LD_LIBRARY_PATH=$QT_ROOT/lib:/usr/local/lib
+QT_PLUGIN_PATH=$QT_ROOT/plugins
+QT_QPA_PLATFORM_PLUGIN_PATH=$QT_ROOT/plugins/platforms
 QTWEBENGINE_CHROMIUM_FLAGS="--no-sandbox --disable-gpu --disable-dev-shm-usage"
 EOF2
 echo '[2c/6] ldd-Check auf fehlende Libs (mit Qt-Umgebung aus qt.env) ...'
@@ -240,13 +244,13 @@ if grep -q 'not found' /tmp/fincept-ldd.txt; then
 else
   echo '  alle Libs aufgeloest.'
 fi
-echo '[3/6] Portal + Units von $REPO_RAW ...'
+echo "[3/6] Portal + Units von $REPO_RAW ..."
 mkdir -p /opt/fincept-portal /etc/fincept /usr/local/bin
 for f in portal/app.py portal/fincept-vnc-start.sh systemd/fincept-portal.service systemd/fincept-vnc.service; do
-  wget -qO \"/tmp/\$(basename \$f)\" \"$REPO_RAW/\$f\" || echo \"WARN: \$f nicht ladbar (Repo noch nicht gepusht?) – nutze eingebetteten Fallback falls vorhanden\"
+  wget -qO "/tmp/$(basename $f)" "$REPO_RAW/$f" || echo "WARN: $f nicht ladbar (Repo noch nicht gepusht?) – nutze eingebetteten Fallback falls vorhanden"
 done
 copy_or_fail() { # args: Quelle Ziel (set -e-sicher, mit Klartext-Fehler)
-  if [ -s \"\$1\" ]; then cp \"\$1\" \"\$2\"; else echo \"FEHLER: \$1 fehlt/leer – Download von $REPO_RAW pruefen\" >&2; exit 1; fi
+  if [ -s "$1" ]; then cp "$1" "$2"; else echo "FEHLER: $1 fehlt/leer – Download von $REPO_RAW pruefen" >&2; exit 1; fi
 }
 copy_or_fail /tmp/app.py /opt/fincept-portal/app.py
 copy_or_fail /tmp/fincept-vnc-start.sh /usr/local/bin/fincept-vnc-start.sh
@@ -255,22 +259,25 @@ copy_or_fail /tmp/fincept-vnc.service /etc/systemd/system/fincept-vnc.service
 chmod +x /usr/local/bin/fincept-vnc-start.sh || true
 python3 -m py_compile /opt/fincept-portal/app.py
 echo '[4/6] Konfiguration ...'
-FINCEPT_BIN=\"\$(command -v FinceptTerminal 2>/dev/null || dpkg -L finceptterminal 2>/dev/null | grep -m1 '/FinceptTerminal\$' || echo /usr/bin/FinceptTerminal)\"
-echo \"  Fincept-Binary: \$FINCEPT_BIN\"
+FINCEPT_BIN="$(command -v FinceptTerminal 2>/dev/null || dpkg -L finceptterminal 2>/dev/null | grep -m1 '/FinceptTerminal$' || echo /usr/bin/FinceptTerminal)"
+echo "  Fincept-Binary: $FINCEPT_BIN"
 cat > /etc/fincept/portal.conf <<EOF2
 PORT=$PORT
 FINCEPT_VERSION=$VERSION
 NOVNC_ENABLED=$NOVNC
-NOVNC_PORT=$DEFAULT_NOVNC_PORT
-FINCEPT_BIN=\$FINCEPT_BIN
+NOVNC_PORT=$NOVNC_PORT
+FINCEPT_BIN=$FINCEPT_BIN
 EOF2
 id fincept >/dev/null 2>&1 || useradd -r -m -s /usr/sbin/nologin fincept || true
 echo '[5/6] systemd enable + start ...'
 systemctl daemon-reload
 systemctl enable --now fincept-portal.service
-if [ '$NOVNC' = '1' ]; then systemctl enable --now fincept-vnc.service; else systemctl disable --now fincept-vnc.service || true; fi
+if [ "$NOVNC" = "1" ]; then systemctl enable --now fincept-vnc.service; else systemctl disable --now fincept-vnc.service || true; fi
 echo '[6/6] done.'
-"
+PAYLOAD_EOF
+pct push "$CTID" "$PAYLOAD_FILE" /tmp/fincept-payload.sh --perms 755
+pct exec "$CTID" -- env PORT="$PORT" VERSION="$VERSION" NOVNC="$NOVNC" NOVNC_PORT="$DEFAULT_NOVNC_PORT" UPSTREAM_REPO="$UPSTREAM_REPO" REPO_RAW="$REPO_RAW" bash /tmp/fincept-payload.sh
+rm -f "$PAYLOAD_FILE"
 
 # ---------------- Verifikation (vom Host aus) -------------------------
 STEP="Verifikation"
