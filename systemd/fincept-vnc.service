@@ -1,0 +1,20 @@
+[Unit]
+Description=FinceptTerminal Desktop via Xvfb + openbox + noVNC
+After=network-online.target fincept-portal.service
+Wants=network-online.target
+ConditionPathExists=/usr/bin/FinceptTerminal
+
+[Service]
+Type=simple
+Environment=DISPLAY=:99
+EnvironmentFile=-/etc/fincept/portal.conf
+ExecStartPre=/bin/sh -c 'rm -f /tmp/.X99-lock; mkdir -p /var/lib/fincept; chown -R fincept:fincept /var/lib/fincept || true'
+ExecStart=/usr/local/bin/fincept-vnc-start.sh
+Restart=always
+RestartSec=5
+User=root
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
