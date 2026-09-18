@@ -179,7 +179,8 @@ apt-get update
 apt-get install -y --no-install-recommends ca-certificates curl wget gnupg \
   python3 libglib2.0-0 libdbus-1-3 libfontconfig1 libfreetype6 libx11-6 \
   libxcb1 libxkbcommon0 libegl1 libgl1 \
-  xvfb openbox x11vnc websockify novnc net-tools iproute2
+  xvfb openbox x11vnc websockify novnc net-tools iproute2 \
+  dbus-x11 xterm x11-xserver-utils procps
 echo '[2/6] FinceptTerminal .deb ($VERSION) ...'
 if dpkg -s finceptterminal 2>/dev/null | grep -q 'Version: $VERSION'; then
   echo '  bereits installiert: $VERSION – überspringe Download.'
@@ -202,11 +203,14 @@ done
 chmod +x /usr/local/bin/fincept-vnc-start.sh || true
 python3 -m py_compile /opt/fincept-portal/app.py
 echo '[4/6] Konfiguration ...'
+FINCEPT_BIN=\"\$(command -v FinceptTerminal 2>/dev/null || dpkg -L finceptterminal 2>/dev/null | grep -m1 '/FinceptTerminal\$' || echo /usr/bin/FinceptTerminal)\"
+echo \"  Fincept-Binary: \$FINCEPT_BIN\"
 cat > /etc/fincept/portal.conf <<EOF2
 PORT=$PORT
 FINCEPT_VERSION=$VERSION
 NOVNC_ENABLED=$NOVNC
 NOVNC_PORT=$DEFAULT_NOVNC_PORT
+FINCEPT_BIN=\$FINCEPT_BIN
 EOF2
 id fincept >/dev/null 2>&1 || useradd -r -m -s /usr/sbin/nologin fincept || true
 echo '[5/6] systemd enable + start ...'
