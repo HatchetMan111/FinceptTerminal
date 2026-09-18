@@ -174,6 +174,9 @@ msg "Installiere FinceptTerminal $VERSION + Portal (Port $PORT) in CT $CTID ..."
 pct exec "$CTID" -- bash -c "
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
+echo '[0/6] Netzwerk Pre-Flight (DNS + HTTPS) ...'
+getent hosts github.com >/dev/null || { echo 'FEHLER: DNS fuer github.com schlaegt fehl' >&2; cat /etc/resolv.conf >&2 || true; exit 1; }
+curl -fsSI --max-time 20 https://github.com >/dev/null || { echo 'FEHLER: HTTPS zu github.com schlaegt fehl (Proxy/Firewall?)' >&2; exit 1; }
 echo '[1/6] apt + Abhängigkeiten ...'
 apt-get update
 apt-get install -y --no-install-recommends ca-certificates curl wget gnupg \
@@ -186,11 +189,18 @@ echo '[2/6] FinceptTerminal .deb ($VERSION) ...'
 if dpkg -s finceptterminal 2>/dev/null | grep -q 'Version: $VERSION'; then
   echo '  bereits installiert: $VERSION – überspringe Download.'
 else
-  set -x
-  wget -qO /tmp/fincept.deb '$UPSTREAM_REPO/releases/download/v$VERSION/FinceptTerminal-$VERSION-linux-x64.deb'
-  apt-get install -y /tmp/fincept.deb
-  rm -f /tmp/fincept.deb
-  set +x
+DEB_URL='$UPSTREAM_REPO/releases/download/v$VERSION/FinceptTerminal-$VERSION-linux-x64.deb'
+DEB_OK=0
+for attempt in 1 2 3; do
+  echo \"  Download-Versuch \$attempt: \$DEB_URL\"
+  if wget -qO /tmp/fincept.deb \"\$DEB_URL\"; then DEB_OK=1; break; fi
+  echo \"  WARN: wget Exit-Code \$? – retry in 10s ...\"
+  sleep 10
+done
+[ \"\$DEB_OK\" = \"1\" ] || { echo \"FEHLER: .deb-Download nach 3 Versuchen fehlgeschlagen: \$DEB_URL\" >&2; echo 'Pruefung: URL im Browser oeffnen, Version mit --version ueberschreiben.' >&2; exit 1; }
+apt-get install -y /tmp/fincept.deb
+rm -f /tmp/fincept.deb
+set +x
 fi
 echo '[2b/6] Qt 6.8.3 Laufzeit via aqtinstall (Upstream-Pin, wie Dockerfile) ...'
 QT_ROOT=/opt/Qt/6.8.3/gcc_64
@@ -233,10 +243,13 @@ mkdir -p /opt/fincept-portal /etc/fincept /usr/local/bin
 for f in portal/app.py portal/fincept-vnc-start.sh systemd/fincept-portal.service systemd/fincept-vnc.service; do
   wget -qO \"/tmp/\$(basename \$f)\" \"$REPO_RAW/\$f\" || echo \"WARN: \$f nicht ladbar (Repo noch nicht gepusht?) – nutze eingebetteten Fallback falls vorhanden\"
 done
-[ -s /tmp/app.py ] && cp /tmp/app.py /opt/fincept-portal/app.py
-[ -s /tmp/fincept-vnc-start.sh ] && cp /tmp/fincept-vnc-start.sh /usr/local/bin/fincept-vnc-start.sh
-[ -s /tmp/fincept-portal.service ] && cp /tmp/fincept-portal.service /etc/systemd/system/fincept-portal.service
-[ -s /tmp/fincept-vnc.service ] && cp /tmp/fincept-vnc.service /etc/systemd/system/fincept-vnc.service
+copy_or_fail() { # $1=Quelle /tmp/x  $2=Ziel  (set -e-sicher, mit Klartext-Fehler)
+  if [ -s \"$1\" ]; then cp \"$1\" \"$2\"; else echo \"FEHLER: \$1 fehlt/leer – Download von \$REPO_RAW pruefen\" >&2; exit 1; fi
+}
+copy_or_fail /tmp/app.py /opt/fincept-portal/app.py
+copy_or_fail /tmp/fincept-vnc-start.sh /usr/local/bin/fincept-vnc-start.sh
+copy_or_fail /tmp/fincept-portal.service /etc/systemd/system/fincept-portal.service
+copy_or_fail /tmp/fincept-vnc.service /etc/systemd/system/fincept-vnc.service
 chmod +x /usr/local/bin/fincept-vnc-start.sh || true
 python3 -m py_compile /opt/fincept-portal/app.py
 echo '[4/6] Konfiguration ...'
