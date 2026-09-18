@@ -19,7 +19,7 @@ APP_NAME="FinceptTerminal"
 DEFAULT_HOSTNAME="finceptterminal"
 DEFAULT_CPU=2
 DEFAULT_RAM=2048        # MB
-DEFAULT_DISK=8          # GB
+DEFAULT_DISK=16          # GB (Qt + Trading-Venvs brauchen Platz)
 DEFAULT_PORT=8080
 DEFAULT_NOVNC_PORT=6080
 DEFAULT_VERSION="4.5.0"
@@ -184,7 +184,8 @@ timeout 15 bash -c 'cat < /dev/null > /dev/tcp/github.com/443' 2>/dev/null || { 
 echo '[1/6] apt + Abhängigkeiten ...'
 apt-get update
   apt-get install -y --no-install-recommends ca-certificates curl wget gnupg \
-  python3 python3-venv python3-pip python3-dev build-essential libssl-dev libffi-dev \
+  python3 python3-venv python3-pip python3-dev build-essential gfortran libssl-dev libffi-dev \
+  libblas-dev liblapack-dev libhdf5-dev libsqlite3-dev \
   libglib2.0-0 libdbus-1-3 libfontconfig1 libfreetype6 libx11-6 \
   libxcb1 libxkbcommon0 libegl1 libgl1 \
   xvfb openbox x11vnc websockify novnc net-tools iproute2 \
@@ -245,6 +246,21 @@ if grep -q 'not found' /tmp/fincept-ldd.txt; then
 else
   echo '  alle Libs aufgeloest.'
 fi
+echo '[2d/6] requirements-numpy1.txt (Trading-Venv, fehlt im .deb) ...'
+RAW_UPSTREAM="${UPSTREAM_REPO/github.com/raw.githubusercontent.com}"
+REQ_OK=0
+for ref in "v$VERSION" "main"; do
+  echo "  Versuch: $ref"
+  if wget -qO /tmp/requirements-numpy1.txt "$RAW_UPSTREAM/$ref/fincept-qt/resources/requirements-numpy1.txt" && [ -s /tmp/requirements-numpy1.txt ]; then REQ_OK=1; break; fi
+  sleep 3
+done
+[ "$REQ_OK" = "1" ] || { echo 'FEHLER: requirements-numpy1.txt weder unter Tag noch main ladbar' >&2; exit 1; }
+for d in /usr/share/fincept-terminal /usr/share/fincept-terminal/resources /usr/bin/resources; do
+  mkdir -p "$d"
+  cp /tmp/requirements-numpy1.txt "$d/requirements-numpy1.txt"
+  if [ -f /usr/share/fincept-terminal/requirements-numpy2.txt ]; then cp /usr/share/fincept-terminal/requirements-numpy2.txt "$d/requirements-numpy2.txt"; fi
+done
+ls -la /usr/share/fincept-terminal/*.txt /usr/share/fincept-terminal/resources/*.txt
 echo "[3/6] Portal + Units von $REPO_RAW ..."
 mkdir -p /opt/fincept-portal /etc/fincept /usr/local/bin
 for f in portal/app.py portal/fincept-vnc-start.sh systemd/fincept-portal.service systemd/fincept-vnc.service; do
