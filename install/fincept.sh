@@ -16,7 +16,7 @@ set -euo pipefail
 # ---------------- Variablen (oben, alles einstellbar) ----------------
 APP="fincept"
 APP_NAME="FinceptTerminal"
-DEFAULT_HOSTNAME="fincept"
+DEFAULT_HOSTNAME="finceptterminal"
 DEFAULT_CPU=2
 DEFAULT_RAM=2048        # MB
 DEFAULT_DISK=8          # GB
@@ -73,7 +73,8 @@ fail() {
   echo "Stack   :" >&2
   local i=0; while caller $i >&2; do i=$((i+1)); done || true
   echo "" >&2
-  echo "Debug mit:  bash -x $0 ${*} " >&2
+  echo "Debug: Script speichern + mit Trace laufen lassen:" >&2
+  echo "  wget -qO /tmp/fincept-debug.sh ${REPO_RAW}/install/fincept.sh && bash -x /tmp/fincept-debug.sh" >&2
   echo "Logs im LXC: pct enter <CTID> -> journalctl -u fincept-portal -n 100 --no-pager" >&2
   exit "${code:-1}"
 }
@@ -97,9 +98,17 @@ ask() { # ask VAR PROMPT DEFAULT (whiptail oder unattended)
   fi
 }
 
+# ID-Belegung prüfen: Container (pct) UND VMs (qm) teilen sich den ID-Raum!
+id_taken() {
+  local id="$1"
+  if pct status "$id" >/dev/null 2>&1; then return 0; fi
+  if command -v qm >/dev/null && qm status "$id" >/dev/null 2>&1; then return 0; fi
+  return 1
+}
+
 next_ctid() {
   local id=100
-  while pct status "$id" >/dev/null 2>&1; do id=$((id+1)); done
+  while id_taken "$id"; do id=$((id+1)); done
   echo "$id"
 }
 
@@ -127,9 +136,10 @@ msg "Raw-Quelle für Portal/Units: $REPO_RAW"
 echo ""
 
 # ------ Belegte CTID -> automatisch nächste freie nehmen (kein Abbruch) -----
-if pct status "$CTID" >/dev/null 2>&1; then
-  warn "CT $CTID ist belegt – nehme automatisch die nächste freie ID."
-  while pct status "$CTID" >/dev/null 2>&1; do CTID=$((CTID+1)); done
+# (prüft Container UND VMs, da beide denselben ID-Raum nutzen)
+if id_taken "$CTID"; then
+  warn "ID $CTID ist belegt (Container oder VM) – nehme automatisch die nächste freie ID."
+  while id_taken "$CTID"; do CTID=$((CTID+1)); done
   msg "Neue CTID: $CTID"
 fi
 RECREATE=1
