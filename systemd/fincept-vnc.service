@@ -2,7 +2,6 @@
 Description=FinceptTerminal Desktop via Xvfb + openbox + noVNC
 After=network-online.target fincept-portal.service
 Wants=network-online.target
-ConditionPathExists=/usr/bin/FinceptTerminal
 
 [Service]
 Type=simple
