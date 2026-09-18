@@ -201,7 +201,7 @@ else
   pip3 install --break-system-packages --no-cache-dir aqtinstall
   for attempt in 1 2 3 4 5; do
     python3 -m aqt install-qt linux desktop 6.8.3 linux_gcc_64 \
-      --outputdir /opt/Qt --modules qtcharts qtwebsockets qtmultimedia 2>&1 | tail -2 && break \
+      --outputdir /opt/Qt --modules qtcharts qtwebsockets qtmultimedia qtwebengine 2>&1 | tail -5 && break \
     || { echo \"  aqtinstall Versuch \$attempt fehlgeschlagen, retry in 10s ...\"; sleep 10; }
   done
   [ -f \"\$QT_ROOT/lib/libQt6Core.so.6\" ] || { echo 'FEHLER: Qt-Installation unvollstaendig' >&2; ls -R /opt/Qt 2>/dev/null | head -20 >&2 || true; exit 1; }
@@ -211,13 +211,14 @@ QT_ROOT=\$QT_ROOT
 LD_LIBRARY_PATH=\$QT_ROOT/lib:/usr/local/lib
 QT_PLUGIN_PATH=\$QT_ROOT/plugins
 QT_QPA_PLATFORM_PLUGIN_PATH=\$QT_ROOT/plugins/platforms
+QTWEBENGINE_CHROMIUM_FLAGS=--no-sandbox --disable-gpu --disable-dev-shm-usage
 EOF2
 echo '[2c/6] ldd-Check auf fehlende Libs ...'
 ldd /usr/bin/FinceptTerminal > /tmp/fincept-ldd.txt 2>&1 || true
 if grep -q 'not found' /tmp/fincept-ldd.txt; then
   echo '  WARN: fehlende Libs, versuche Debian-Pakete:'
   grep 'not found' /tmp/fincept-ldd.txt || true
-  apt-get install -y --no-install-recommends libgl1 libegl1 libopengl0 libdbus-1-3 libfontconfig1 libfreetype6 libglib2.0-0 libx11-6 libxkbcommon0 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-sync1 libxcb-xfixes0 libxcb-xinerama0 libxcb-xkb1 libxcb-util1 libpulse0 libasound2 || true
+  apt-get install -y --no-install-recommends libgl1 libegl1 libopengl0 libgl1-mesa-dri libdbus-1-3 libfontconfig1 libfreetype6 libglib2.0-0 libx11-6 libxkbcommon0 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-sync1 libxcb-xfixes0 libxcb-xinerama0 libxcb-xkb1 libxcb-util1 libpulse0 libasound2 libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxcomposite1 libxdamage1 libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libatspi2.0-0 libxcursor1 || true
   ldd /usr/bin/FinceptTerminal > /tmp/fincept-ldd.txt 2>&1 || true
   if grep -q 'not found' /tmp/fincept-ldd.txt; then
     echo 'FEHLER: Libs fehlen weiterhin:' >&2; grep 'not found' /tmp/fincept-ldd.txt >&2 || true
